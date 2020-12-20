@@ -2,7 +2,9 @@ package simplejwt
 
 import (
 	"fmt"
+	"strings"
 
+	"gopkg.in/jose.v1"
 	"gopkg.in/jose.v1/crypto"
 	"gopkg.in/jose.v1/jws"
 	"gopkg.in/jose.v1/jwt"
@@ -38,6 +40,8 @@ func FromBytes(b []byte) (*SimpleJWT, error) {
 	return s, nil
 }
 
+// SimpleJWT is a container for the necessary config / state parsed from a
+// potential token. It should only be constructed via FromBytes.
 type SimpleJWT struct {
 	underlying              []byte
 	parsedJWS               jws.JWS
@@ -47,5 +51,24 @@ type SimpleJWT struct {
 
 // UnderlyingBytes return the unmodified bytes used to construct the SimpleJWT.
 func (sj *SimpleJWT) UnderlyingBytes() []byte { return sj.underlying }
-func (sj *SimpleJWT) JWS() jws.JWS            { return sj.parsedJWS }
-func (sj *SimpleJWT) JWT() jwt.JWT            { return sj.parsedJWT }
+
+// JWS returns the underlying JWS model used by simplejwt.
+func (sj *SimpleJWT) JWS() jws.JWS { return sj.parsedJWS }
+
+// JWT returns the underlying JWT model used by simplejwt.
+func (sj *SimpleJWT) JWT() jwt.JWT { return sj.parsedJWT }
+
+func (sj *SimpleJWT) Claims() CommonClaims {
+	return simpleClaims{sj.parsedJWT.Claims()}
+}
+
+// ClaimsJSON returns the JSON string of all claims presented in the JWT.
+func (sj *SimpleJWT) ClaimsJSON() ([]byte, error) {
+	base := sj.UnderlyingBytes()
+	parts := strings.Split(string(base), ".")
+	payload, err := jose.DecodeEscaped([]byte(parts[1]))
+	if err != nil {
+		return nil, fmt.Errorf("Unable to extract payload from JWT: %v", err.Error())
+	}
+	return payload, nil
+}

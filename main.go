@@ -77,6 +77,6 @@ func main() {
 		fmt.Printf("Token was valid\n")
 	}
 
-	claimBytes, _ := token.ClaimJSON()
+	claimBytes, _ := token.ClaimsJSON()
 	fmt.Printf("claims: %v\n", string(claimBytes))
 }

@@ -1,23 +1,37 @@
 package simplejwt
 
 import (
-	"fmt"
-	"strings"
+	"time"
 
-	"gopkg.in/jose.v1"
+	"gopkg.in/jose.v1/jwt"
 )
 
-func (sj *SimpleJWT) RawClaims() map[string]interface{} {
-	return sj.parsedJWT.Claims()
+type CommonClaims interface {
+	Has(string) bool
+	Get(string) interface{}
+
+	String(string) (string, bool)
+	Time(string) (time.Time, bool)
+	Bool(string) (bool, bool)
+
+	Audience() ([]string, bool)
+	Issuer() (string, bool)
+	Subject() (string, bool)
+	JWTID() (string, bool)
+	Expiration() (time.Time, bool)
+	NotBefore() (time.Time, bool)
+	IssuedAt() (time.Time, bool)
+
+	Underlying() jwt.Claims
 }
 
-func (sj *SimpleJWT) HasClaim(key string) bool {
-	return sj.parsedJWT.Claims().Has(key)
+type simpleClaims struct {
+	jwt.Claims
 }
 
-func (sj *SimpleJWT) ClaimStr(key string) (string, bool) {
-	raw, ok := sj.parsedJWT.Claims()[key]
-	if !ok {
+func (sc simpleClaims) String(key string) (string, bool) {
+	raw := sc.Claims.Get(key)
+	if raw == nil {
 		return "", false
 	}
 
@@ -29,9 +43,9 @@ func (sj *SimpleJWT) ClaimStr(key string) (string, bool) {
 	return s, true
 }
 
-func (sj *SimpleJWT) ClaimBool(key string) (bool, bool) {
-	raw, ok := sj.parsedJWT.Claims()[key]
-	if !ok {
+func (sc simpleClaims) Bool(key string) (bool, bool) {
+	raw := sc.Claims.Get(key)
+	if raw == nil {
 		return false, false
 	}
 
@@ -43,20 +57,10 @@ func (sj *SimpleJWT) ClaimBool(key string) (bool, bool) {
 	return b, true
 }
 
-func (sj *SimpleJWT) Claim(key string) (interface{}, bool) {
-	if raw, ok := sj.parsedJWT.Claims()[key]; ok {
-		return raw, true
-	}
-
-	return nil, false
+func (sc simpleClaims) Time(key string) (time.Time, bool) {
+	return sc.GetTime(key)
 }
 
-func (sj *SimpleJWT) ClaimJSON() ([]byte, error) {
-	base := sj.UnderlyingBytes()
-	parts := strings.Split(string(base), ".")
-	payload, err := jose.DecodeEscaped([]byte(parts[1]))
-	if err != nil {
-		return nil, fmt.Errorf("Unable to extract payload from JWT: %v", err.Error())
-	}
-	return payload, nil
+func (sc simpleClaims) Underlying() jwt.Claims {
+	return sc.Claims
 }

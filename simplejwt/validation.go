@@ -12,6 +12,10 @@ import (
 	"gopkg.in/jose.v1/jwt"
 )
 
+// type validatorImpl struct {
+// 	allowableSigningMethods map[string]bool
+// }
+
 // SetAllowedSignatureTypes sets the set of signing methods that can be used
 // to validate a SimpleJWT.
 func (sj *SimpleJWT) SetAllowedSignatureTypes(methods ...crypto.SigningMethod) {
@@ -167,6 +171,8 @@ type expectClaims struct{ expected map[string]string }
 
 func (expectClaims) isValidationOption() {}
 
+// ExpectClaims constructs a JWT validation option that requires the validated
+// token to have an explicit set of claim/values.
 func ExpectClaims(expected map[string]string) validationOption { return expectClaims{expected} }
 
 func (sj *SimpleJWT) getSigningMethod() (crypto.SigningMethod, error) {
