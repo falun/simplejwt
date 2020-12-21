@@ -10,13 +10,17 @@ import (
 	"gopkg.in/jose.v1/jwt"
 )
 
-// type SimpleJWT interface {
-// 	UnderlyingBytes() []byte
-// }
-
 func init() {
 	// by default don't support validation unsigned tokens
 	jws.RemoveSigningMethod(crypto.Unsecured)
+}
+
+func MustParse(b []byte) *SimpleJWT {
+	token, err := FromBytes(b)
+	if err != nil {
+		panic(err)
+	}
+	return token
 }
 
 func FromBytes(b []byte) (*SimpleJWT, error) {
@@ -57,6 +61,21 @@ func (sj *SimpleJWT) JWS() jws.JWS { return sj.parsedJWS }
 
 // JWT returns the underlying JWT model used by simplejwt.
 func (sj *SimpleJWT) JWT() jwt.JWT { return sj.parsedJWT }
+
+func (sj *SimpleJWT) SigningMethod() (crypto.SigningMethod, error) {
+	algInterface, ok := sj.parsedJWS.Protected()["alg"]
+	alg, cok := algInterface.(string)
+	if !ok || !cok {
+		return nil, fmt.Errorf("Could not find signing algorithm in header")
+	}
+
+	method := jws.GetSigningMethod(alg)
+	if method == nil {
+		return nil, fmt.Errorf("Unknown signing algorithm specified: %v", alg)
+	}
+
+	return method, nil
+}
 
 func (sj *SimpleJWT) Claims() CommonClaims {
 	return simpleClaims{sj.parsedJWT.Claims()}
