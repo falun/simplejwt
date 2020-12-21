@@ -1,4 +1,4 @@
-package simplejwt
+package signer
 
 import (
 	"fmt"
@@ -16,18 +16,18 @@ type JWTSigner interface {
 	SignWithClaims(jws.Claims) ([]byte, error)
 }
 
-// Signer produces a JWTSigner for a given key and method. If a signer could
+// New produces a JWTSigner for a given key and method. If a signer could
 // not be constructed an error is returned.
-func Signer(method crypto.SigningMethod, key interface{}) (JWTSigner, error) {
-	return SignerWithCommonClaims(method, key, nil)
+func New(method crypto.SigningMethod, key interface{}) (JWTSigner, error) {
+	return NewWithCommonClaims(method, key, nil)
 }
 
-// SignerWithCommonClaims produces a JWTSigner for a given key and method.
+// NewWithCommonClaims produces a JWTSigner for a given key and method.
 // Additionally when each set of payload/claims are signed a function will
 // be called allowing modification to the claims being attested.
 //
 // If a signer can not be constructed an error is returned.
-func SignerWithCommonClaims(
+func NewWithCommonClaims(
 	method crypto.SigningMethod,
 	key interface{},
 	applyCommonClaims func(jws.Claims) (jws.Claims, error),
@@ -53,6 +53,9 @@ func (s signer) Sign(payload map[string]interface{}) ([]byte, error) {
 
 // SignWithClaims implements JWTSigner interface.
 func (s signer) SignWithClaims(claims jws.Claims) ([]byte, error) {
+	if claims == nil {
+		claims = jws.Claims{}
+	}
 	if s.commonClaimFn != nil {
 		newClaims, err := s.commonClaimFn(claims)
 		if err != nil {

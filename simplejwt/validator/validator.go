@@ -1,4 +1,4 @@
-package simplejwt
+package validator
 
 import (
 	"crypto/ecdsa"
@@ -8,16 +8,29 @@ import (
 	"time"
 
 	"gopkg.in/jose.v1/crypto"
-	"gopkg.in/jose.v1/jws"
 	"gopkg.in/jose.v1/jwt"
+
+	"okcoder.com/jwt-test/simplejwt"
 )
+
+// New returns a JWT validator. It can be configured to take a limited set of
+// signing methods, see SetAllowedSignatureTypes for details. Token validation
+// is handled by SimpleValidate or Validate.
+func New() *ValidatorImpl {
+	return &ValidatorImpl{}
+}
+
+// ValidatorImpl provides
+type ValidatorImpl struct {
+	allowableSigningMethods map[string]bool
+}
 
 // SetAllowedSignatureTypes sets the set of signing methods that can be used
 // to validate a SimpleJWT.
-func (sj *SimpleJWT) SetAllowedSignatureTypes(methods ...crypto.SigningMethod) {
-	sj.allowableSigningMethods = map[string]bool{}
+func (v *ValidatorImpl) SetAllowedSignatureTypes(methods ...crypto.SigningMethod) {
+	v.allowableSigningMethods = map[string]bool{}
 	for _, m := range methods {
-		sj.allowableSigningMethods[m.Alg()] = true
+		v.allowableSigningMethods[m.Alg()] = true
 	}
 }
 
@@ -25,15 +38,15 @@ type validationKey interface {
 	isValidationKey()
 }
 
-// WithSharedSecret constructs a symmetric validation key that is a shared
+// KeySharedSecret constructs a symmetric validation key that is a shared
 // between the signer and validator.
-func WithSharedSecret(pk []byte) validationKey { return sharedSecret{pk} }
+func KeySharedSecret(pk []byte) validationKey { return sharedSecret{pk} }
 
-// WithPublicKeyRSA constructs an asymmetric validation key using an RSA PublicKey.
-func WithPublicKeyRSA(ss *rsa.PublicKey) validationKey { return publicKey{ss} }
+// KeyPublicRSA constructs an asymmetric validation key using an RSA PublicKey.
+func KeyPublicRSA(ss *rsa.PublicKey) validationKey { return publicKey{ss} }
 
-// WithPublicKeyECDSA constructs an asymmetric validation key using an ECDSA PublicKey.
-func WithPublicKeyECDSA(pk *ecdsa.PublicKey) validationKey { return publicKey{pk} }
+// KeyPublicECDSA constructs an asymmetric validation key using an ECDSA PublicKey.
+func KeyPublicECDSA(pk *ecdsa.PublicKey) validationKey { return publicKey{pk} }
 
 type sharedSecret struct {
 	secret []byte
@@ -47,17 +60,21 @@ type publicKey struct {
 
 func (publicKey) isValidationKey() {}
 
-// SimpleValidate takes a validation key (c.f. WithSharedSecret, WithPublicKeyRSA,
+// SimpleValidate takes a JWT + validation key (c.f. KeySharedSecret, KeyPublicRSA,
 // etc) and verifies the JWT signature using that key. It will also ensure that
 // the signing algorithm is one that has been declared acceptable for this JWT.
-func (sj SimpleJWT) SimpleValidate(vk validationKey) error {
-	return sj.Validate(vk)
+func (v ValidatorImpl) SimpleValidate(jwt simplejwt.SimpleJWT, vk validationKey) error {
+	return v.Validate(jwt, vk)
 }
 
-// validate takes a validation key and series of validation options. Options
-// may or may not be additive, see each option function for details.
-func (sj SimpleJWT) Validate(vk validationKey, opts ...validationOption) error {
-	if err := sj.validateSignatureType(); err != nil {
+// Validate takes a JWT + validation key and series of validation options.
+// Options may or may not be additive, see each option function for details.
+func (v ValidatorImpl) Validate(
+	token simplejwt.SimpleJWT,
+	vk validationKey,
+	opts ...validationOption,
+) error {
+	if err := validateSignatureType(token, v); err != nil {
 		return fmt.Errorf("Unsuported signature type: %v", err.Error())
 	}
 
@@ -97,7 +114,7 @@ func (sj SimpleJWT) Validate(vk validationKey, opts ...validationOption) error {
 		return fmt.Errorf("Unsupported signing method: %T", vk)
 	}
 
-	method, err := sj.getSigningMethod()
+	method, err := token.SigningMethod()
 	if err != nil {
 		return err
 	}
@@ -118,7 +135,7 @@ func (sj SimpleJWT) Validate(vk validationKey, opts ...validationOption) error {
 		}
 	}
 
-	return sj.parsedJWT.Validate(key, method, validator)
+	return token.JWT().Validate(key, method, validator)
 }
 
 type validationOption interface{ isValidationOption() }
@@ -131,7 +148,8 @@ func (hasClaims) isValidationOption() {}
 
 // HasClaims rejects a JWT that does not have the specifed claims defined.
 // Multiple has claims are additive and will require the aggregate of all
-// specified claim keys.
+// provided claim keys. The value of a particular claim is not enforced only
+// that the claim is present.
 func HasClaims(claims ...string) validationOption { return hasClaims{claims} }
 
 func (hc hasClaims) validator() jwt.ValidateFunc {
@@ -167,34 +185,21 @@ type expectClaims struct{ expected map[string]string }
 
 func (expectClaims) isValidationOption() {}
 
+// ExpectClaims constructs a JWT validation option that requires the validated
+// token to have an explicit set of claim/values.
 func ExpectClaims(expected map[string]string) validationOption { return expectClaims{expected} }
 
-func (sj *SimpleJWT) getSigningMethod() (crypto.SigningMethod, error) {
-	algInterface, ok := sj.parsedJWS.Protected()["alg"]
-	alg, cok := algInterface.(string)
-	if !ok || !cok {
-		return nil, fmt.Errorf("Could not find signing algorithm in header")
-	}
-
-	method := jws.GetSigningMethod(alg)
-	if method == nil {
-		return nil, fmt.Errorf("Unknown signing algorithm specified: %v", alg)
-	}
-
-	return method, nil
-}
-
-func (sj *SimpleJWT) validateSignatureType() error {
-	method, err := sj.getSigningMethod()
+func validateSignatureType(sj simplejwt.SimpleJWT, v ValidatorImpl) error {
+	method, err := sj.SigningMethod()
 	if err != nil {
 		return err
 	}
 
-	if len(sj.allowableSigningMethods) == 0 {
+	if len(v.allowableSigningMethods) == 0 {
 		return nil
 	}
 
-	if !sj.allowableSigningMethods[method.Alg()] {
+	if !v.allowableSigningMethods[method.Alg()] {
 		return fmt.Errorf("Disallowed signing algorithm: %v", method.Alg())
 	}
 
