@@ -5,11 +5,11 @@ import (
 	"log"
 	"time"
 
-	"okcoder.com/jwt-test/keyutil"
-	"okcoder.com/jwt-test/simplejwt"
-	"okcoder.com/jwt-test/simplejwt/signer"
-	"okcoder.com/jwt-test/simplejwt/validator"
-	"okcoder.com/jwt-test/testkeys"
+	"github.com/falun/simplejwt/keyutil"
+	"github.com/falun/simplejwt/simplejwt"
+	"github.com/falun/simplejwt/simplejwt/signer"
+	"github.com/falun/simplejwt/simplejwt/validator"
+	"github.com/falun/simplejwt/testkeys"
 
 	"gopkg.in/jose.v1/crypto"
 	"gopkg.in/jose.v1/jws"

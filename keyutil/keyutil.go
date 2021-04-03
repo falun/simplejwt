@@ -7,7 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"okcoder.com/jwt-test/testkeys"
+	"github.com/falun/simplejwt/testkeys"
 )
 
 func RSAPublicKeyFromPEMBytes(b []byte) (*rsa.PublicKey, error) {

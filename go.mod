@@ -1,4 +1,4 @@
-module okcoder.com/jwt-test
+module github.com/falun/simplejwt
 
 go 1.13
 

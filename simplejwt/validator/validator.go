@@ -10,7 +10,7 @@ import (
 	"gopkg.in/jose.v1/crypto"
 	"gopkg.in/jose.v1/jwt"
 
-	"okcoder.com/jwt-test/simplejwt"
+	"github.com/falun/simplejwt/simplejwt"
 )
 
 // New returns a JWT validator. It can be configured to take a limited set of
